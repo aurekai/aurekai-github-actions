@@ -1,0 +1,19 @@
+name: aurekai-release-gate
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        default: "0.8.0-alpha.4"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/aurekai/aurekai:0.8.0-alpha.4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Release gate
+        run: akai release gate --version ${{ inputs.version || '0.8.0-alpha.4' }} --json

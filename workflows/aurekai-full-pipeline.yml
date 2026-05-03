@@ -1,0 +1,14 @@
+name: aurekai-full-pipeline
+
+on:
+  workflow_dispatch:
+
+jobs:
+  doctor-deep:
+    uses: ./.github/workflows/aurekai-doctor-deep.yml
+  manifest-verify:
+    needs: doctor-deep
+    uses: ./.github/workflows/aurekai-manifest-verify.yml
+  release-gate:
+    needs: manifest-verify
+    uses: ./.github/workflows/aurekai-release-gate.yml

@@ -1,0 +1,15 @@
+name: aurekai-doctor-deep
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/aurekai/aurekai:0.8.0-alpha.4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Doctor deep
+        run: akai doctor --deep --json
