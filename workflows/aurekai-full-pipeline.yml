@@ -1,0 +1,92 @@
+name: Aurekai Full Pipeline
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        type: string
+        default: "0.8.0-alpha.5"
+      model-tag:
+        type: string
+        default: "latest"
+      release-tag:
+        type: string
+        default: ""
+
+jobs:
+  doctor-deep:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/aurekai/aurekai:${{ inputs.version || '0.8.0-alpha.5' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aurekai/aurekai-github-actions@main
+        id: doctor
+        with:
+          operator: doctor-deep
+          version: ${{ inputs.version || '0.8.0-alpha.5' }}
+    outputs:
+      result: ${{ steps.doctor.outputs.result }}
+
+  manifest-verify:
+    needs: doctor-deep
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/aurekai/aurekai:${{ inputs.version || '0.8.0-alpha.5' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aurekai/aurekai-github-actions@main
+        id: verify
+        with:
+          operator: manifest-verify
+          version: ${{ inputs.version || '0.8.0-alpha.5' }}
+    outputs:
+      result: ${{ steps.verify.outputs.result }}
+
+  model-memory-pack:
+    needs: manifest-verify
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/aurekai/aurekai:${{ inputs.version || '0.8.0-alpha.5' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aurekai/aurekai-github-actions@main
+        id: pack
+        with:
+          operator: model-memory-pack
+          version: ${{ inputs.version || '0.8.0-alpha.5' }}
+          model-tag: ${{ inputs.model-tag || 'latest' }}
+    outputs:
+      proof-uri: ${{ steps.pack.outputs.proof-uri }}
+
+  proof-bundle-export:
+    needs: model-memory-pack
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/aurekai/aurekai:${{ inputs.version || '0.8.0-alpha.5' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aurekai/aurekai-github-actions@main
+        id: proof
+        with:
+          operator: proof-bundle-export
+          version: ${{ inputs.version || '0.8.0-alpha.5' }}
+          proof-run-id: ${{ github.sha }}
+    outputs:
+      proof-uri: ${{ steps.proof.outputs.proof-uri }}
+
+  release-gate:
+    needs: proof-bundle-export
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/aurekai/aurekai:${{ inputs.version || '0.8.0-alpha.5' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aurekai/aurekai-github-actions@main
+        with:
+          operator: release-gate
+          version: ${{ inputs.version || '0.8.0-alpha.5' }}
+          release-tag: ${{ inputs.release-tag || github.ref_name }}
+

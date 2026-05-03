@@ -1,0 +1,46 @@
+name: Aurekai Proof Bundle Export
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        default: "0.8.0-alpha.5"
+      proof-run-id:
+        type: string
+        default: ""
+  workflow_dispatch:
+    inputs:
+      version:
+        type: string
+        default: "0.8.0-alpha.5"
+      proof-run-id:
+        type: string
+        description: "Run ID to export proof bundle for (defaults to GITHUB_SHA)"
+        default: ""
+
+jobs:
+  proof-bundle-export:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/aurekai/aurekai:${{ inputs.version || '0.8.0-alpha.5' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Export proof bundle
+        uses: aurekai/aurekai-github-actions@main
+        with:
+          operator: proof-bundle-export
+          version: ${{ inputs.version || '0.8.0-alpha.5' }}
+          proof-run-id: ${{ inputs.proof-run-id || github.sha }}
+          upload-artifacts: "true"
+        id: proof
+
+      - name: Summary
+        run: |
+          echo "### Proof Bundle Export" >> $GITHUB_STEP_SUMMARY
+          echo "**Run ID**: \`${{ inputs.proof-run-id || github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Proof URI**: \`${{ steps.proof.outputs.proof-uri }}\`" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.proof.outputs.result }}' | python3 -m json.tool >> $GITHUB_STEP_SUMMARY || echo '${{ steps.proof.outputs.result }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

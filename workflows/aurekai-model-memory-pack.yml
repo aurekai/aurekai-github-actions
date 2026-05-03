@@ -1,0 +1,47 @@
+name: Aurekai Model Memory Pack
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        default: "0.8.0-alpha.5"
+      model-tag:
+        type: string
+        default: "latest"
+      upload-artifacts:
+        type: boolean
+        default: true
+  workflow_dispatch:
+    inputs:
+      version:
+        type: string
+        default: "0.8.0-alpha.5"
+      model-tag:
+        type: string
+        default: "latest"
+
+jobs:
+  model-memory-pack:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/aurekai/aurekai:${{ inputs.version || '0.8.0-alpha.5' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pack model memory
+        uses: aurekai/aurekai-github-actions@main
+        with:
+          operator: model-memory-pack
+          version: ${{ inputs.version || '0.8.0-alpha.5' }}
+          model-tag: ${{ inputs.model-tag || 'latest' }}
+          upload-artifacts: ${{ inputs.upload-artifacts || 'true' }}
+        id: pack
+
+      - name: Summary
+        run: |
+          echo "### Model Memory Pack" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.pack.outputs.result }}' | python3 -m json.tool >> $GITHUB_STEP_SUMMARY || echo '${{ steps.pack.outputs.result }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "**Proof URI**: \`${{ steps.pack.outputs.proof-uri }}\`" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,44 @@
+name: Aurekai Semantic Cache Benchmark
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        default: "0.8.0-alpha.5"
+      cache-namespace:
+        type: string
+        default: "default"
+  workflow_dispatch:
+    inputs:
+      version:
+        type: string
+        default: "0.8.0-alpha.5"
+      cache-namespace:
+        type: string
+        default: "default"
+
+jobs:
+  semantic-cache-bench:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/aurekai/aurekai:${{ inputs.version || '0.8.0-alpha.5' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Semantic cache benchmark
+        uses: aurekai/aurekai-github-actions@main
+        with:
+          operator: semantic-cache-bench
+          version: ${{ inputs.version || '0.8.0-alpha.5' }}
+          cache-namespace: ${{ inputs.cache-namespace || 'default' }}
+          upload-artifacts: "true"
+        id: bench
+
+      - name: Summary
+        run: |
+          echo "### Semantic Cache Benchmark" >> $GITHUB_STEP_SUMMARY
+          echo "**Namespace**: \`${{ inputs.cache-namespace || 'default' }}\`" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.bench.outputs.result }}' | python3 -m json.tool >> $GITHUB_STEP_SUMMARY || echo '${{ steps.bench.outputs.result }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

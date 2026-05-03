@@ -1,0 +1,19 @@
+name: aurekai-manifest-verify
+
+on:
+  workflow_call:
+    inputs:
+      manifest:
+        type: string
+        default: artifact.json
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/aurekai/aurekai:0.8.0-alpha.4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Manifest verify
+        run: akai verify --manifest ${{ inputs.manifest || 'artifact.json' }} --json

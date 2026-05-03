@@ -1,0 +1,139 @@
+name: Aurekai
+description: "Run Aurekai capability operators — doctor, manifest verify, model-memory pack, SAE audit, semantic cache bench, proof bundle export, release gate."
+author: aurekai
+
+branding:
+  icon: cpu
+  color: orange
+
+inputs:
+  operator:
+    description: "Aurekai operator to run (doctor-deep | manifest-verify | model-memory-pack | sae-audit | semantic-cache-bench | proof-bundle-export | release-gate)"
+    required: true
+  version:
+    description: "Aurekai runtime version"
+    required: false
+    default: "0.8.0-alpha.5"
+  manifest:
+    description: "Path to artifact.json (used by manifest-verify)"
+    required: false
+    default: "artifact.json"
+  release-tag:
+    description: "Release tag for release-gate"
+    required: false
+    default: ""
+  model-tag:
+    description: "Model tag for model-memory-pack"
+    required: false
+    default: "latest"
+  cache-namespace:
+    description: "Namespace for semantic-cache-bench"
+    required: false
+    default: "default"
+  proof-run-id:
+    description: "Run ID for proof-bundle-export"
+    required: false
+    default: ""
+  upload-artifacts:
+    description: "Upload .akrun.json and .akproof.json as GitHub artifacts"
+    required: false
+    default: "true"
+  fail-on-error:
+    description: "Fail the step on non-zero akai exit code"
+    required: false
+    default: "true"
+
+outputs:
+  result:
+    description: "JSON output from the operator"
+    value: ${{ steps.run.outputs.result }}
+  proof-uri:
+    description: "aurekai:// proof URI emitted by the operator"
+    value: ${{ steps.run.outputs.proof_uri }}
+  exit-code:
+    description: "Exit code from akai"
+    value: ${{ steps.run.outputs.exit_code }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install Aurekai runtime
+      shell: bash
+      run: |
+        if ! command -v akai &>/dev/null; then
+          npm install -g @aurekai/runtime@${{ inputs.version }} --silent
+        fi
+
+    - name: Run operator
+      id: run
+      shell: bash
+      env:
+        AUREKAI_OPERATOR: ${{ inputs.operator }}
+        AUREKAI_MANIFEST: ${{ inputs.manifest }}
+        AUREKAI_RELEASE_TAG: ${{ inputs.release-tag }}
+        AUREKAI_MODEL_TAG: ${{ inputs.model-tag }}
+        AUREKAI_CACHE_NS: ${{ inputs.cache-namespace }}
+        AUREKAI_PROOF_RUN_ID: ${{ inputs.proof-run-id }}
+        AUREKAI_FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+      run: |
+        set -euo pipefail
+        OUTFILE=$(mktemp /tmp/aurekai-result-XXXXXX.json)
+
+        run_operator() {
+          case "$AUREKAI_OPERATOR" in
+            doctor-deep)
+              akai doctor --deep --json 2>&1 | tee "$OUTFILE"
+              ;;
+            manifest-verify)
+              akai verify --manifest "$AUREKAI_MANIFEST" --json 2>&1 | tee "$OUTFILE"
+              ;;
+            model-memory-pack)
+              akai pack --tag "$AUREKAI_MODEL_TAG" --json 2>&1 | tee "$OUTFILE"
+              ;;
+            sae-audit)
+              akai sae audit --json 2>&1 | tee "$OUTFILE"
+              ;;
+            semantic-cache-bench)
+              akai cache bench --namespace "$AUREKAI_CACHE_NS" --json 2>&1 | tee "$OUTFILE"
+              ;;
+            proof-bundle-export)
+              RUN_ID="${AUREKAI_PROOF_RUN_ID:-$GITHUB_SHA}"
+              akai proof export --run-id "$RUN_ID" --json 2>&1 | tee "$OUTFILE"
+              ;;
+            release-gate)
+              TAG="${AUREKAI_RELEASE_TAG:-${GITHUB_REF_NAME:-unknown}}"
+              akai release gate --version "$TAG" --json 2>&1 | tee "$OUTFILE"
+              ;;
+            *)
+              echo "Unknown operator: $AUREKAI_OPERATOR" >&2
+              exit 1
+              ;;
+          esac
+        }
+
+        RC=0
+        run_operator || RC=$?
+
+        RESULT=$(cat "$OUTFILE" 2>/dev/null || echo '{}')
+        echo "result<<AKEOF" >> "$GITHUB_OUTPUT"
+        echo "$RESULT" >> "$GITHUB_OUTPUT"
+        echo "AKEOF" >> "$GITHUB_OUTPUT"
+
+        PROOF_URI=$(echo "$RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('proof_uri',''))" 2>/dev/null || true)
+        echo "proof_uri=$PROOF_URI" >> "$GITHUB_OUTPUT"
+        echo "exit_code=$RC" >> "$GITHUB_OUTPUT"
+
+        cp "$OUTFILE" aurekai-result.json
+        rm -f "$OUTFILE"
+
+        if [[ "$AUREKAI_FAIL_ON_ERROR" == "true" && "$RC" -ne 0 ]]; then
+          exit $RC
+        fi
+
+    - name: Upload proof artifacts
+      if: inputs.upload-artifacts == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: aurekai-${{ inputs.operator }}-${{ github.sha }}
+        path: aurekai-result.json
+        if-no-files-found: ignore
