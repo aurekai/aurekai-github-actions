@@ -1,0 +1,36 @@
+name: Aurekai SAE Audit
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        default: "0.8.0-alpha.5"
+  workflow_dispatch:
+    inputs:
+      version:
+        type: string
+        default: "0.8.0-alpha.5"
+
+jobs:
+  sae-audit:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/aurekai/aurekai:${{ inputs.version || '0.8.0-alpha.5' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SAE audit
+        uses: aurekai/aurekai-github-actions@main
+        with:
+          operator: sae-audit
+          version: ${{ inputs.version || '0.8.0-alpha.5' }}
+          upload-artifacts: "true"
+        id: audit
+
+      - name: Summary
+        run: |
+          echo "### SAE Audit" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.audit.outputs.result }}' | python3 -m json.tool >> $GITHUB_STEP_SUMMARY || echo '${{ steps.audit.outputs.result }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
