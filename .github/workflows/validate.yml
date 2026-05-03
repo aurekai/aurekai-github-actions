@@ -19,6 +19,8 @@ jobs:
           test -f README.md
           test -f LICENSE
           test -f .release-versions.env
+      - name: Install Python deps
+        run: pip install pyyaml
       - name: Validate release versions
         run: bash tests/validate-schemas.sh
       - name: Validate pipeline files
